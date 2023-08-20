@@ -95,26 +95,151 @@ chr_lens2 <- rbind(chr_lens) %>%
   tidyr::pivot_longer(cols = -CHROM, names_to = "poop", values_to = "POS") %>%
   dplyr::select(-poop) 
 
-# plot the gene locations and the chromosome lengths
-rugPlot <- ggplot() + 
-  theme_bw() + 
-  geom_bar(data = chr_lens2, mapping = aes(x = POS/1000000), alpha = 0.0) +
-  facet_grid(.~CHROM, scales = "free_x", space = "free") +
-  geom_segment(data = candidates, aes(x = startPOS/1000000, xend = endPOS/1000000, y = -Inf, yend = Inf,
-                                      color = Gene_class), linetype=1, size = 0.4)+
-  scale_x_continuous(expand = c(0, 0), breaks = c(5, 10, 15, 20)) +
-  scale_color_manual(values = rug_colors)+
-  #facet_grid(Gene_class ~ CHROM, scales = "free_x", space = "free")+
-  labs(x =  "Genomic position (Mb)", y = NULL)+
-  theme(legend.position = "none", 
-        panel.grid = element_blank(),
-        plot.title = element_blank(),
-        axis.title.x = element_text(size = 12, face="bold"),
-        axis.title.y = element_blank(),
-        axis.text.y = element_blank(),
-        axis.text.x = element_blank(),# remove y axis labels
-        axis.ticks.y = element_blank(),
-        # axis.ticks.x = element_blank(),# remove y axis ticks
-        strip.text.x = element_blank(),
-        strip.text.y = element_blank())
+
+# load mappings data
+load("data/filtered.mappings.results.rda")
+
+# load the independent test cuttoffs
+load("data/independent_test_cutoff.rda")
+
+
+# initialize a list to store the plots
+plot_list <- list()
+
+# loop over each trait
+for (ivm in unique(filtered.mappings.results$trait)){
+  IVM.mappings <- filtered.mappings.results %>% 
+    dplyr::filter(trait %in% ivm) 
+  
+  
+  # 
+  # do we have mito mapping?
+  IVM.mito_check <- IVM.mappings %>%
+    na.omit()
+  
+  ## MANHATTAN PLOTS ##
+  for.plot.IVM <- IVM.mappings %>%
+    dplyr::mutate(CHROM = as.factor(CHROM)) %>%
+    {
+      if(!("MtDNA" %in% IVM.mito_check$CHROM)) dplyr::filter(., CHROM != "MtDNA") else .
+    }
+  BF.IVM <- IVM.mappings %>% 
+    dplyr::group_by(trait, algorithm) %>% 
+    dplyr::filter(log10p != 0) %>% 
+    dplyr::distinct(marker, log10p) %>%
+    dplyr::mutate(BF = -log10(0.05/sum(log10p > 0, na.rm = T))) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(BF) %>%
+    unique(.) %>%
+    dplyr::slice(1) %>% # BF can be slightly different between loco and inbred... but just plot one (5.46 v 5.47...)
+    as.numeric()
+  
+  EIGEN <- independent_test_cutoff
+  BF.frame.IVM <- IVM.mappings %>%
+    dplyr::select(trait) %>%
+    dplyr::filter(!duplicated(trait)) %>%
+    dplyr::mutate(BF = BF.IVM, EIGEN  = EIGEN, user = unique(IVM.mappings$BF)[1])
+  
+  # if user selected a different threshold, use that, otherwise plot BF and EIGEN
+  if(BF.frame.IVM$user %in% c(BF.frame.IVM$BF, BF.frame.IVM$EIGEN)) {
+    for.plot.ann.IVM <- for.plot.IVM %>%
+      dplyr::mutate(sig = case_when(log10p > BF.frame.IVM$BF ~ "BF",
+                                    log10p > BF.frame.IVM$EIGEN ~ "EIGEN",
+                                    TRUE ~ "NONSIG"))
+    
+    sig.colors <- c("#EE4266","#EE4266", "black") # changed here to differentiate BF (red) and EIGEN (#EE4266)
+    names(sig.colors) <- c("BF","EIGEN", "NONSIG")
+  } else {
+    for.plot.ann.IVM <- for.plot.IVM %>%
+      dplyr::mutate(sig = case_when(log10p > BF.frame.IVM$user ~ "user",
+                                    TRUE ~ "NONSIG"))
+    
+    sig.colors <- c("#EE4266", "black")
+    names(sig.colors) <- c("user", "NONSIG")
+  }
+  
+  test.IVM <- BF.frame.IVM %>%
+    tidyr::pivot_longer(BF:user) %>%
+    dplyr::distinct() %>%
+    dplyr::filter(name %in% names(sig.colors)) %>% 
+    dplyr::filter(!name %in% "BF")
+  
+  # are we plotting mito or no?
+  if("MtDNA" %in% unique(for.plot.ann.IVM$CHROM)) {
+    facet_scales <- "fixed"
+  } else {
+    facet_scales <- "free"
+  }
+  
+  manhattan <- ggplot() + 
+    theme_bw() + 
+    geom_bar(data = chr_lens2, mapping = aes(x = POS/1000000), alpha = 0.0) +
+    facet_grid( .~ CHROM, scales = "free_x", space = "free") +
+    geom_point(data = for.plot.ann.IVM, 
+               mapping = aes(x = POS/1000000, 
+                             y = log10p,
+                             colour = sig,
+                             alpha = sig)) +
+    scale_alpha_manual(values = c("BF" = 1, "EIGEN" = 1, "user" = 1, "NONSIG" = 0.25), guide = "none") +
+    scale_colour_manual(values = sig.colors, guide = "none") +  # no legend for points color
+    scale_x_continuous(expand = c(0, 0), breaks = c(5, 10, 15, 20)) +
+    scale_y_continuous(breaks = seq(0, round(max(for.plot.ann.IVM$log10p)), by = 2))+
+    geom_hline(data = test.IVM, aes(yintercept = value, linetype = name)) + 
+    scale_linetype_manual(values = c("BF" = 1, "EIGEN" = 3, "user" = 2), guide = "none") +  # no legend for linetypes
+    labs(x =  NULL,
+         y = expression(bold(-log[10](italic(p))))) +
+    theme(legend.position = "none", 
+          panel.grid = element_blank(),
+          plot.title = element_text(size = 10),
+          axis.title.x = element_blank(),  # remove x axis title
+          axis.text.x = element_blank(),  # remove x axis text
+          axis.ticks.x = element_blank(),  # remove x axis ticks
+          axis.title.y = element_text(size = 10),
+          strip.text = element_text(size = 10, face="bold")
+          #               strip.text.y = element_text(angle = 0, size = 12),
+          #                strip.background = element_rect(fill = "grey", colour = "black")
+    )+
+    facet_grid(algorithm ~ CHROM, scales = "free_x", space = "free")
+  
+  # plot the gene locations and the chromosome lengths
+  rugPlot <- ggplot() + 
+    theme_bw() + 
+    geom_bar(data = chr_lens2, mapping = aes(x = POS/1000000), alpha = 0.0) +
+    facet_grid(.~CHROM, scales = "free_x", space = "free") +
+    geom_segment(data = candidates, aes(x = startPOS/1000000, xend = endPOS/1000000, y = -Inf, yend = Inf,
+                                        color = Gene_class), linetype=1, size = 0.4)+
+    scale_x_continuous(expand = c(0, 0), breaks = c(5, 10, 15, 20)) +
+    scale_color_manual(values = rug_colors)+
+    #facet_grid(Gene_class ~ CHROM, scales = "free_x", space = "free")+
+    labs(x =  "Genomic position (Mb)", y = NULL)+
+    theme(legend.position = "none", 
+          panel.grid = element_blank(),
+          plot.title = element_blank(),
+          axis.title.x = element_text(size = 12, face="bold"),
+          axis.title.y = element_blank(),
+          axis.text.y = element_blank(),
+          axis.text.x = element_blank(),# remove y axis labels
+          axis.ticks.y = element_blank(),
+          # axis.ticks.x = element_blank(),# remove y axis ticks
+          strip.text.x = element_blank(),
+          strip.text.y = element_blank())
+  
+  
+  
+  # adjust mergins of the manhattan plot and the rug plot
+  manhattan <- manhattan + theme(plot.margin = margin(5.5, 5.5, 0, 8, "pt"))
+  rugPlot <- rugPlot + theme(plot.margin = margin(0, 5.5, 5.5, 5.5, "pt"))
+  combined_plot_sized <- manhattan + rugPlot + patchwork::plot_layout(ncol = 1, heights = c(7, 1))
+  plot_list[[ivm]] <- combined_plot_sized
+  
+ ggsave(paste0("Figures/singlePlots/",ivm,".png"), combined_plot_sized , width=7.5, height=3.5, units = "in", dpi = 600)
+  
+}    
+
+
+# combine all plots into one figure
+cowplots <- cowplot::plot_grid(plot_list$length_Ivermectin_12,plot_list$length_Ivermectin_08, align="V", ncol = 1, labels = c("A","B"))
+
+ggsave(paste0("Figures/Ivermectin2021GWA.png"), cowplots , width=7.5, height=5, units = "in", dpi = 600)
+
 
