@@ -1,7 +1,9 @@
 # Vsualisation of C. elegans mappings after Ivermectin drug exposure
 
 ## Overview
-This script provides a visualization of the mappings for C. elegans genes implicated in Ivermectin drug exposure. The data is sourced from the [**AndersenLab**](https://andersenlab.org/).
+This script provides a visualization of the mappings for C. elegans genes implicated in Ivermectin drug exposure. 
+
+The data is sourced from the [**AndersenLab**](https://andersenlab.org/).
 
 The *Figures.R* script fetches genomic coordinates of genes implicated in Ivermectin
 
