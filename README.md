@@ -8,11 +8,11 @@ The mapping data is sourced from the [**AndersenLab**](https://andersenlab.org/)
 ## Requirements
 The following R packages are required to run the script:
 
-tidyverse
-data.table
-biomaRt
-glue
-ggplot2
+1. tidyverse
+1. data.table
+1. biomaRt
+1. glue
+1. ggplot2
 
 ## Instructions
 Make sure all the required libraries are installed. The script contains commands for installing the required libraries.
