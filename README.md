@@ -5,8 +5,6 @@ This script provides a visualization of the mappings for C. elegans genes implic
 
 The data is sourced from the [**AndersenLab**](https://andersenlab.org/).
 
-The *Figures.R* script fetches genomic coordinates of genes implicated in Ivermectin
-
 ## Requirements
 The following R packages are required to run the script:
 
