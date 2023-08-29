@@ -1,7 +1,7 @@
 # Visualization of _C. elegans_ mappings after Ivermectin drug exposure
 
 ## Overview
-This short script provides generates Manhattan plots of mappings for _C. elegans_ after Ivermectin drug exposure and a Rug plot of genes implicated in Ivermectin resistance.
+This short script generates Manhattan plots of mappings for _C. elegans_ after Ivermectin drug exposure and a Rug plot of genes implicated in Ivermectin resistance.
 
 The sample GWA mapping data is sourced from the [**AndersenLab**](https://andersenlab.org/).
 
